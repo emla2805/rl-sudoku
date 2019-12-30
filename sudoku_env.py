@@ -5,11 +5,11 @@ from tf_agents.environments import utils
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 
-from utils import one_hot_encode
+from utils import load_dataset
 
 
 class SudokuEnvironment(py_environment.PyEnvironment):
-    def __init__(self):
+    def __init__(self, dataset):
         self._action_spec = array_spec.BoundedArraySpec(
             shape=(),
             dtype='int32',
@@ -24,8 +24,10 @@ class SudokuEnvironment(py_environment.PyEnvironment):
             maximum=1,
             name="observation",
         )
-        self._state = one_hot_encode("004300209005009001070060043006002087190007400050083000600000105003508690042910300").numpy()
-        self._solution = one_hot_encode("864371259325849761971265843436192587198657432257483916689734125713528694542916378").numpy()
+        self.ds = dataset
+        q, s = next(iter(self.ds))
+        self._state = q.numpy()
+        self._solution = s.numpy()
         self._episode_ended = False
 
     def action_spec(self):
@@ -35,8 +37,9 @@ class SudokuEnvironment(py_environment.PyEnvironment):
         return self._observation_spec
 
     def _reset(self):
-        self._state = one_hot_encode("004300209005009001070060043006002087190007400050083000600000105003508690042910300").numpy()
-        self._solution = one_hot_encode("864371259325849761971265843436192587198657432257483916689734125713528694542916378").numpy()
+        q, s = next(iter(self.ds))
+        self._state = q.numpy()
+        self._solution = s.numpy()
         self._episode_ended = False
         return ts.restart(self._state)
 
@@ -62,10 +65,12 @@ class SudokuEnvironment(py_environment.PyEnvironment):
     def __is_solved(self):
         return np.all(self._state == self._solution)
 
+    # TODO: Write a allowed action instead
     def __correct_action(self, action):
         return self._solution[action] == 1 & self._state[action] == 0
 
 
 if __name__ == '__main__':
-    env = SudokuEnvironment()
+    ds_train, ds_eval = load_dataset("data/sudoku.csv")
+    env = SudokuEnvironment(ds_train)
     utils.validate_py_environment(env, episodes=50)
