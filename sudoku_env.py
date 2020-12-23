@@ -5,7 +5,7 @@ from tf_agents.environments import utils
 from tf_agents.specs import array_spec
 from tf_agents.trajectories import time_step as ts
 
-from utils import load_dataset
+from utils import load_dataset, create_constraint_mask
 
 
 class SudokuEnvironment(py_environment.PyEnvironment):
@@ -24,6 +24,7 @@ class SudokuEnvironment(py_environment.PyEnvironment):
             maximum=1,
             name="observation",
         )
+        self.constraint_mask = create_constraint_mask()
         self.ds = dataset
         q, s = next(iter(self.ds))
         self._state = q.numpy()
@@ -49,7 +50,7 @@ class SudokuEnvironment(py_environment.PyEnvironment):
         if self._episode_ended:
             return self.reset()
 
-        if self.__correct_action(action_2d):
+        if self.__valid_action(action_2d):
             self._state[action_2d] = 1
 
             if self.__is_solved():
@@ -65,12 +66,26 @@ class SudokuEnvironment(py_environment.PyEnvironment):
     def __is_solved(self):
         return np.all(self._state == self._solution)
 
+    def __is_empty_spot(self, action):
+        return self._state[action] == 0
+
+    def __obey_constraint(self, action):
+        state_copy = self._state.copy()
+        state_copy[action] = 1
+
+        res = state_copy * self.constraint_mask
+        res = np.sum(res, axis=3)
+        return np.max(res) == 1
+
+    def __valid_action(self, action):
+        return self.__is_empty_spot(action) & self.__obey_constraint(action)
+
     # TODO: Write a allowed action instead
-    def __correct_action(self, action):
-        return self._solution[action] == 1 & self._state[action] == 0
+    # def __correct_action(self, action):
+    #     return self._solution[action] == 1 & self._state[action] == 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     ds_train, ds_eval = load_dataset("data/sudoku.csv")
     env = SudokuEnvironment(ds_train)
     utils.validate_py_environment(env, episodes=50)
